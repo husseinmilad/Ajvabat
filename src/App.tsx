@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, {useEffect, useMemo, useRef, useState} from 'react';
+import React, {Suspense, lazy, useEffect, useMemo, useRef, useState} from 'react';
 import {ListFilter, ArrowUp, BookOpen, SearchX} from 'lucide-react';
 import type {
   BookDataset,
@@ -35,10 +35,19 @@ import {HeroAtlas} from './components/HeroAtlas.tsx';
 import {TopicSidebar} from './components/TopicSidebar.tsx';
 import {SearchControls} from './components/SearchControls.tsx';
 import {QuestionCard} from './components/QuestionCard.tsx';
-import {QuestionDetailModal} from './components/QuestionDetailModal.tsx';
-import {ShareModal} from './components/ShareModal.tsx';
-import {BookmarksNotesView} from './components/BookmarksNotesView.tsx';
-import {AboutView} from './components/AboutView.tsx';
+
+const QuestionDetailModal = lazy(() =>
+  import('./components/QuestionDetailModal.tsx').then(m => ({default: m.QuestionDetailModal})),
+);
+const ShareModal = lazy(() =>
+  import('./components/ShareModal.tsx').then(m => ({default: m.ShareModal})),
+);
+const BookmarksNotesView = lazy(() =>
+  import('./components/BookmarksNotesView.tsx').then(m => ({default: m.BookmarksNotesView})),
+);
+const AboutView = lazy(() =>
+  import('./components/AboutView.tsx').then(m => ({default: m.AboutView})),
+);
 
 const DEFAULT_SEARCH_OPTIONS: SearchOptions = {
   query: '',
@@ -80,7 +89,7 @@ export default function App() {
   const fetchBookData = React.useCallback(async () => {
     setLoadError(null);
     try {
-      const res = await fetch('/data/ajwibah.json');
+      const res = await fetch(`${import.meta.env.BASE_URL}data/ajwibah.json`);
       if (!res.ok) throw new Error('دریافت متن کتاب با خطا مواجه شد.');
       const json = (await res.json()) as BookDataset;
       setDataset(json);
@@ -387,26 +396,42 @@ export default function App() {
       ) : (
         <main className="flex-1">
           {activeView === 'saved' ? (
-            <BookmarksNotesView
-              questionsById={questionsById}
-              chaptersById={chaptersById}
-              subtopicsById={subtopicsById}
-              bookmarks={bookmarks}
-              notes={notes}
-              bookmarkedSubtopics={bookmarkedSubtopics}
-              fontScale={prefs.fontScale}
-              onToggleBookmark={handleToggleBookmark}
-              onUpdateBookmark={handleUpdateBookmark}
-              onSaveNote={handleSaveNote}
-              onDeleteNote={handleDeleteNote}
-              onOpenShare={setShareQuestion}
-              onOpenDetail={setDetailQuestion}
-              onSelectSubtopicFromSaved={(chId, subId) => handleSelectSubtopic(chId, subId)}
-              onToggleBookmarkSubtopic={handleToggleBookmarkSubtopic}
-              onImportBackup={handleImportBackup}
-            />
+            <Suspense
+              fallback={
+                <div className="py-16 text-center text-xs text-[#57534E] dark:text-[#A8A29E]">
+                  در حال بارگذاری نشانه‌ها و یادداشت‌ها...
+                </div>
+              }
+            >
+              <BookmarksNotesView
+                questionsById={questionsById}
+                chaptersById={chaptersById}
+                subtopicsById={subtopicsById}
+                bookmarks={bookmarks}
+                notes={notes}
+                bookmarkedSubtopics={bookmarkedSubtopics}
+                fontScale={prefs.fontScale}
+                onToggleBookmark={handleToggleBookmark}
+                onUpdateBookmark={handleUpdateBookmark}
+                onSaveNote={handleSaveNote}
+                onDeleteNote={handleDeleteNote}
+                onOpenShare={setShareQuestion}
+                onOpenDetail={setDetailQuestion}
+                onSelectSubtopicFromSaved={(chId, subId) => handleSelectSubtopic(chId, subId)}
+                onToggleBookmarkSubtopic={handleToggleBookmarkSubtopic}
+                onImportBackup={handleImportBackup}
+              />
+            </Suspense>
           ) : activeView === 'about' ? (
-            <AboutView onBackToBrowse={() => setActiveView('browse')} />
+            <Suspense
+              fallback={
+                <div className="py-16 text-center text-xs text-[#57534E] dark:text-[#A8A29E]">
+                  در حال بارگذاری اطلاعات برنامه...
+                </div>
+              }
+            >
+              <AboutView onBackToBrowse={() => setActiveView('browse')} />
+            </Suspense>
           ) : (
             <>
               {activeView === 'browse' && (
@@ -611,47 +636,47 @@ export default function App() {
             مرجع تعاملی اجوبة‌الاستفتائات شهید آیت‌الله سید علی خامنه‌ای (قدس‌الله‌نفسه‌الزکیه)
           </span>
           <span className="tabular-nums">
-            ۲٬۱۱۸ استفتاء · نسخه قابل نصب مستقل روی اندروید
+            ۲٬۱۱۸ استفتاء · ۵۲۹ صفحه متن کامل
           </span>
         </div>
       </footer>
 
       {/* Focused Detail Reading Modal */}
-      <QuestionDetailModal
-        item={detailQuestion}
-        chapterTitle={
-          detailQuestion ? chaptersById.get(detailQuestion.chapterId)?.title || '' : ''
-        }
-        subtopicTitle={
-          detailQuestion ? subtopicsById.get(detailQuestion.subtopicId)?.title || '' : ''
-        }
-        fontScale={prefs.fontScale}
-        bookmark={detailQuestion ? bookmarkMap.get(detailQuestion.id) : undefined}
-        note={detailQuestion ? noteMap.get(detailQuestion.id) : undefined}
-        onClose={() => setDetailQuestion(null)}
-        onNavigate={nextId => {
-          const next = questionsById.get(nextId);
-          if (next) setDetailQuestion(next);
-        }}
-        onToggleBookmark={handleToggleBookmark}
-        onUpdateBookmark={handleUpdateBookmark}
-        onSaveNote={handleSaveNote}
-        onDeleteNote={handleDeleteNote}
-        onOpenShare={setShareQuestion}
-      />
+      {detailQuestion && (
+        <Suspense fallback={null}>
+          <QuestionDetailModal
+            item={detailQuestion}
+            chapterTitle={chaptersById.get(detailQuestion.chapterId)?.title || ''}
+            subtopicTitle={subtopicsById.get(detailQuestion.subtopicId)?.title || ''}
+            fontScale={prefs.fontScale}
+            bookmark={bookmarkMap.get(detailQuestion.id)}
+            note={noteMap.get(detailQuestion.id)}
+            onClose={() => setDetailQuestion(null)}
+            onNavigate={nextId => {
+              const next = questionsById.get(nextId);
+              if (next) setDetailQuestion(next);
+            }}
+            onToggleBookmark={handleToggleBookmark}
+            onUpdateBookmark={handleUpdateBookmark}
+            onSaveNote={handleSaveNote}
+            onDeleteNote={handleDeleteNote}
+            onOpenShare={setShareQuestion}
+          />
+        </Suspense>
+      )}
 
-      {/* Social Media Share Modal */}
-      <ShareModal
-        item={shareQuestion}
-        chapterTitle={
-          shareQuestion ? chaptersById.get(shareQuestion.chapterId)?.title || '' : ''
-        }
-        subtopicTitle={
-          shareQuestion ? subtopicsById.get(shareQuestion.subtopicId)?.title || '' : ''
-        }
-        personalNoteText={shareQuestion ? noteMap.get(shareQuestion.id)?.text : undefined}
-        onClose={() => setShareQuestion(null)}
-      />
+      {/* Share Modal */}
+      {shareQuestion && (
+        <Suspense fallback={null}>
+          <ShareModal
+            item={shareQuestion}
+            chapterTitle={chaptersById.get(shareQuestion.chapterId)?.title || ''}
+            subtopicTitle={subtopicsById.get(shareQuestion.subtopicId)?.title || ''}
+            personalNoteText={noteMap.get(shareQuestion.id)?.text}
+            onClose={() => setShareQuestion(null)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

@@ -40,7 +40,7 @@ export function TopBar({
           className="flex items-center gap-2.5 text-right cursor-pointer shrink-0 group"
         >
           <img
-            src="/assets/aistudio/a______________________11e307c1.webp"
+            src={`${import.meta.env.BASE_URL}assets/aistudio/a______________________11e307c1.webp`}
             alt="لوگوی اجوبة‌الاستفتائات"
             className="w-10 h-10 rounded-xl object-cover shadow-xs transition-transform duration-300 group-hover:scale-105"
           />

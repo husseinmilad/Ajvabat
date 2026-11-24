@@ -80,7 +80,7 @@ export function PWAInstallButton() {
             <div className="flex items-center justify-between border-b border-[#E2D9C8] dark:border-[#2D333A] pb-3 mb-4">
               <div className="flex items-center gap-2.5">
                 <img
-                  src="/assets/aistudio/a______________________11e307c1.webp"
+                  src={`${import.meta.env.BASE_URL}assets/aistudio/a______________________11e307c1.webp`}
                   alt="آیکون اپ اجوبة‌الاستفتائات"
                   className="w-9 h-9 rounded-lg object-cover"
                 />
@@ -88,7 +88,7 @@ export function PWAInstallButton() {
                   id="android-install-title"
                   className="text-base font-bold text-[#1C1917] dark:text-[#F4EFE6]"
                 >
-                  نصب مستقل اپلیکیشن اندروید
+                  نصب اپلیکیشن اندروید
                 </h3>
               </div>
               <button
@@ -103,7 +103,7 @@ export function PWAInstallButton() {
 
             <div className="space-y-3.5 text-sm leading-7 text-[#44403C] dark:text-[#D6D3D1]">
               <p className="text-xs leading-6">
-                این برنامه با استاندارد <strong>Android Standalone App</strong> پیکربندی شده و پس از نصب، با آیکون اختصاصی در صفحه اصلی گوشی و در پنجره تمام‌صفحه مستقل (بدون نوار مرورگر) اجرا می‌شود.
+                این برنامه با آیکون اختصاصی در صفحه اصلی گوشی و در پنجره تمام‌صفحه (بدون نوار مرورگر) اجرا می‌شود.
               </p>
 
               <div className="p-3.5 bg-[#F8F5EE] dark:bg-[#22272C] rounded-md border border-[#E2D9C8] dark:border-[#2D333A] space-y-2">
@@ -114,7 +114,7 @@ export function PWAInstallButton() {
                 <ol className="text-xs leading-6 space-y-1 pr-4 list-decimal">
                   <li>برنامه را در مرورگر <strong>Chrome</strong> گوشی اندروید خود باز کنید.</li>
                   <li>روی منوی سه‌نقطه بالا (⋮) بزنید و گزینه <strong>نصب برنامه (Install app)</strong> یا <strong>افزودن به صفحه اصلی (Add to Home screen)</strong> را انتخاب کنید.</li>
-                  <li>روی <strong>نصب (Install)</strong> بزنید تا اپ به صورت مستقل در لیست برنامه‌های اندروید نصب شود.</li>
+                  <li>روی <strong>نصب (Install)</strong> بزنید تا اپ در لیست برنامه‌های اندروید نصب شود.</li>
                 </ol>
               </div>
 

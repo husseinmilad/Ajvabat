@@ -7,7 +7,7 @@ export interface GeneratedShareImage {
   filename: string;
 }
 
-const LOGO_URL = '/assets/aistudio/a______________________11e307c1.webp';
+const LOGO_URL = `${import.meta.env.BASE_URL}assets/aistudio/a______________________11e307c1.webp`;
 
 function loadImage(src: string): Promise<HTMLImageElement | null> {
   return new Promise(resolve => {
