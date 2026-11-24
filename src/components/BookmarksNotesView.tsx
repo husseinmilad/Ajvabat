@@ -1,4 +1,7 @@
 import React, {useRef, useState} from 'react';
+import {Capacitor} from '@capacitor/core';
+import {Directory, Encoding, Filesystem} from '@capacitor/filesystem';
+import {Share} from '@capacitor/share';
 import {
   Bookmark,
   Star,
@@ -118,13 +121,57 @@ export function BookmarksNotesView({
       });
   }, [savedQuestionIds, questionsById, bookmarkMap, noteMap, selectedCategory, filterText]);
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const payload = buildBackupPayload(bookmarks, notes, bookmarkedSubtopics);
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'});
+    const jsonString = JSON.stringify(payload, null, 2);
+    const filename = `ajwibah-notes-backup-${new Date().toISOString().slice(0, 10)}.json`;
+
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await Filesystem.writeFile({
+          path: `Ajwibah/${filename}`,
+          data: jsonString,
+          directory: Directory.Documents,
+          encoding: Encoding.UTF8,
+          recursive: true,
+        });
+        setStatusMessage({
+          type: 'ok',
+          text: `فایل پشتیبان با موفقیت در پوشه Documents/Ajwibah/${filename} ذخیره شد.`,
+        });
+        return;
+      } catch {
+        try {
+          const cached = await Filesystem.writeFile({
+            path: filename,
+            data: jsonString,
+            directory: Directory.Cache,
+            encoding: Encoding.UTF8,
+          });
+          await Share.share({
+            title: 'پشتیبان نشانه‌ها و یادداشت‌های اجوبة‌الاستفتائات',
+            files: [cached.uri],
+          });
+          setStatusMessage({
+            type: 'ok',
+            text: 'فایل پشتیبان آماده ذخیره و اشتراک‌گذاری شد.',
+          });
+          return;
+        } catch {
+          setStatusMessage({
+            type: 'err',
+            text: 'خطا در ذخیره فایل پشتیبان در حافظه دستگاه.',
+          });
+          return;
+        }
+      }
+    }
+
+    const blob = new Blob([jsonString], {type: 'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ajwibah-notes-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
     setStatusMessage({type: 'ok', text: 'فایل پشتیبان نشانه‌ها و یادداشت‌ها با موفقیت ذخیره شد.'});

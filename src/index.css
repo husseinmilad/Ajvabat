@@ -13,6 +13,13 @@
   html {
     font-family: 'Vazirmatn', ui-sans-serif, system-ui, -apple-system, sans-serif;
     scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button,
+  a,
+  [role="button"] {
+    touch-action: manipulation;
   }
 }
 
@@ -26,6 +33,14 @@
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* Subtle Islamic 8-fold Girih lattice background pattern */

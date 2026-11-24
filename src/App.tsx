@@ -31,7 +31,7 @@ import {
   savePreferences,
 } from './utils/storage.ts';
 import {toPersianDigits} from './utils/persian.ts';
-import {TopBar, type AppView} from './components/TopBar.tsx';
+import {TopBar, MobileBottomNav, type AppView} from './components/TopBar.tsx';
 import {UtilityBar} from './components/UtilityBar.tsx';
 import {HeroAtlas} from './components/HeroAtlas.tsx';
 import {TopicSidebar} from './components/TopicSidebar.tsx';
@@ -162,21 +162,7 @@ export default function App() {
     };
   }, [dataset]);
 
-  // Deep-link ?q=<id> support
-  useEffect(() => {
-    if (!dataset) return;
-    const params = new URLSearchParams(window.location.search);
-    const qParam = params.get('q');
-    if (qParam) {
-      const id = Number.parseInt(qParam, 10);
-      const found = questionsById.get(id);
-      if (found) {
-        setDetailQuestion(found);
-      }
-    }
-  }, [dataset, questionsById]);
-
-  // Global keyboard shortcut Ctrl+K / '/' to focus search
+  // Global keyboard shortcut Ctrl+K to focus search
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
@@ -374,7 +360,7 @@ export default function App() {
   ]).size;
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8F5EE] dark:bg-[#111315] text-[#1C1917] dark:text-[#F4EFE6]">
+    <div className="min-h-screen flex flex-col pb-16 md:pb-0 bg-[#F8F5EE] dark:bg-[#111315] text-[#1C1917] dark:text-[#F4EFE6]">
       <TopBar
         activeView={activeView}
         onChangeView={handleChangeView}
@@ -700,6 +686,12 @@ export default function App() {
           />
         </Suspense>
       )}
+      {/* Mobile Ergonomic Bottom Tab Bar */}
+      <MobileBottomNav
+        activeView={activeView}
+        onChangeView={handleChangeView}
+        savedCount={totalSavedItems}
+      />
     </div>
   );
 }
