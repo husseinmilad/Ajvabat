@@ -1,0 +1,57 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  .dark {
+    color-scheme: dark;
+  }
+
+  html {
+    font-family: 'Vazirmatn', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    scroll-behavior: smooth;
+  }
+}
+
+.font-editorial {
+  font-family: 'Amiri', 'Vazirmatn', Georgia, serif;
+}
+
+.font-body {
+  font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtle Islamic 8-fold Girih lattice background pattern */
+.islamic-lattice {
+  background-image: url("data:image/svg+xml,%3Csvg width='64' height='64' viewBox='0 0 64 64' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%230F4C46' stroke-opacity='0.06' stroke-width='1'%3E%3Cpath d='M32 0L41.37 22.63L64 32L41.37 41.37L32 64L22.63 41.37L0 32L22.63 22.63Z'/%3E%3Ccircle cx='32' cy='32' r='10'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+.dark .islamic-lattice {
+  background-image: url("data:image/svg+xml,%3Csvg width='64' height='64' viewBox='0 0 64 64' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%232DD4BF' stroke-opacity='0.05' stroke-width='1'%3E%3Cpath d='M32 0L41.37 22.63L64 32L41.37 41.37L32 64L22.63 41.37L0 32L22.63 22.63Z'/%3E%3Ccircle cx='32' cy='32' r='10'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* Refined custom scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(120, 113, 108, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 76, 70, 0.55);
+}
