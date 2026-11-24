@@ -31,6 +31,24 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Accept Android SDK licenses and install API 36
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "Using Android SDK at: $SDK_ROOT"
+          SDKMANAGER=$(command -v sdkmanager || true)
+          if [ -z "$SDKMANAGER" ]; then
+            SDKMANAGER=$(find "$SDK_ROOT" -name sdkmanager -type f 2>/dev/null | head -n 1 || true)
+          fi
+          if [ -n "$SDKMANAGER" ]; then
+            yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null 2>&1 || true
+            "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+          else
+            echo "::warning::sdkmanager not found, relying on Gradle auto-download"
+          fi
+          mkdir -p "$SDK_ROOT/licenses"
+          printf "\n24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$SDK_ROOT/licenses/android-sdk-license"
+          printf "\n84831b9409646a918e30573bab4c9c91346d8abd" > "$SDK_ROOT/licenses/android-sdk-preview-license"
+
       - name: Install dependencies
         run: |
           if [ -f package-lock.json ]; then
@@ -42,27 +60,33 @@ jobs:
       - name: Type check
         run: npm run lint
 
-      - name: Build web bundle & sync Capacitor Android
+      - name: Build web bundle and sync Capacitor Android
         run: npm run cap:sync
 
       - name: Build Android APK
         run: |
+          sed -i 's/\r$//' android/gradlew || true
           chmod +x android/gradlew
           cd android
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Rename APK output
+      - name: Package APK output
         run: |
+          APK_PATH="android/app/build/outputs/apk/debug/app-debug.apk"
+          test -f "$APK_PATH"
           mkdir -p apk-out
-          cp android/app/build/outputs/apk/debug/app-debug.apk apk-out/Ajwibah-Al-Istiftaat.apk
+          cp "$APK_PATH" apk-out/Ajwibah-Al-Istiftaat.apk
+          ls -lh apk-out/Ajwibah-Al-Istiftaat.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: Ajwibah-Al-Istiftaat-APK
           path: apk-out/Ajwibah-Al-Istiftaat.apk
+          retention-days: 90
 
       - name: Publish APK to GitHub Release
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
