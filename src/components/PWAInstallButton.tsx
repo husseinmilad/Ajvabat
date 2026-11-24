@@ -1,4 +1,5 @@
 import React, {useEffect, useState} from 'react';
+import {Capacitor} from '@capacitor/core';
 import {Smartphone, X, MoreVertical, CheckCircle2} from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -7,11 +8,13 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export function PWAInstallButton() {
+  const isNative = Capacitor.isNativePlatform();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isInstalled, setIsInstalled] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(isNative);
   const [showGuide, setShowGuide] = useState(false);
 
   useEffect(() => {
+    if (isNative) return;
     if (
       window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as unknown as {standalone?: boolean}).standalone === true
@@ -37,9 +40,9 @@ export function PWAInstallButton() {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
-  }, []);
+  }, [isNative]);
 
-  if (isInstalled) return null;
+  if (isInstalled || isNative) return null;
 
   const handleClick = async () => {
     if (deferredPrompt) {

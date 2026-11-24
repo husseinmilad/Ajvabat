@@ -1,4 +1,7 @@
 import React, {useEffect, useState} from 'react';
+import {Capacitor} from '@capacitor/core';
+import {Directory, Filesystem} from '@capacitor/filesystem';
+import {Share} from '@capacitor/share';
 import {X, Copy, Check, Image as ImageIcon, Download, Share2} from 'lucide-react';
 import type {IstiftaItem} from '../types/book.ts';
 import {buildFormattedShareText} from '../utils/share.ts';
@@ -96,7 +99,40 @@ export function ShareModal({
     }
   };
 
-  const downloadImage = (img: GeneratedShareImage) => {
+  const downloadImage = async (img: GeneratedShareImage) => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const base64Data = img.dataUrl.split(',')[1] || '';
+        const saved = await Filesystem.writeFile({
+          path: `Ajwibah/${img.filename}`,
+          data: base64Data,
+          directory: Directory.Documents,
+          recursive: true,
+        });
+        setImageFeedback(`تصویر با موفقیت در پوشه Documents/Ajwibah ذخیره شد.`);
+        setTimeout(() => setImageFeedback(null), 3500);
+        return saved.uri;
+      } catch {
+        // Fallback to cache + native share save dialog
+        try {
+          const base64Data = img.dataUrl.split(',')[1] || '';
+          const cached = await Filesystem.writeFile({
+            path: img.filename,
+            data: base64Data,
+            directory: Directory.Cache,
+          });
+          await Share.share({
+            title: `ذخیره تصویر استفتاء ${toPersianDigits(item.id)}`,
+            files: [cached.uri],
+          });
+          return cached.uri;
+        } catch {
+          setImageFeedback('خطا در ذخیره تصویر در دستگاه.');
+          return null;
+        }
+      }
+    }
+
     const url = URL.createObjectURL(img.blob);
     const a = document.createElement('a');
     a.href = url;
@@ -105,11 +141,31 @@ export function ShareModal({
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     setImageFeedback('تصویر استفتاء در دستگاه شما ذخیره شد.');
     setTimeout(() => setImageFeedback(null), 2500);
+    return null;
   };
 
   const handleImageShare = async () => {
     const img = imageState.result;
     if (!img) return;
+
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const base64Data = img.dataUrl.split(',')[1] || '';
+        const cached = await Filesystem.writeFile({
+          path: img.filename,
+          data: base64Data,
+          directory: Directory.Cache,
+        });
+        await Share.share({
+          title: `استفتاء شماره ${toPersianDigits(item.id)} — اجوبة‌الاستفتائات`,
+          files: [cached.uri],
+        });
+        return;
+      } catch (err) {
+        if (err instanceof Error && /cancel/i.test(err.message)) return;
+      }
+    }
+
     const file = new File([img.blob], img.filename, {type: 'image/png'});
     const nav = navigator as Navigator & {
       canShare?: (data?: ShareData) => boolean;
@@ -126,7 +182,7 @@ export function ShareModal({
         if (err instanceof Error && err.name === 'AbortError') return;
       }
     }
-    downloadImage(img);
+    await downloadImage(img);
   };
 
   return (

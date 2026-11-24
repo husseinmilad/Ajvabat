@@ -1,9 +1,47 @@
-import React from 'react';
+import React, {useState} from 'react';
+import {Capacitor} from '@capacitor/core';
+import {Directory, Filesystem} from '@capacitor/filesystem';
+import {Share} from '@capacitor/share';
 import {BookOpen, Search, Bookmark, Image as ImageIcon, FileText} from 'lucide-react';
 import {toPersianDigits} from '../utils/persian.ts';
 
 export function AboutView({onBackToBrowse}: {onBackToBrowse: () => void}) {
   const baseUrl = import.meta.env.BASE_URL;
+  const pdfUrl = `${baseUrl}assets/aistudio/booklet_2__Leader.ir__50180706.pdf`;
+  const [pdfBusy, setPdfBusy] = useState(false);
+
+  const handleOpenPdfNative = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!Capacitor.isNativePlatform()) return;
+    e.preventDefault();
+    if (pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      const res = await fetch(pdfUrl);
+      const blob = await res.blob();
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = typeof reader.result === 'string' ? reader.result : '';
+          resolve(result.split(',')[1] || '');
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+      const cached = await Filesystem.writeFile({
+        path: 'ajwibah-al-istiftaat.pdf',
+        data: base64Data,
+        directory: Directory.Cache,
+      });
+      await Share.share({
+        title: 'فایل PDF کتاب اجوبة‌الاستفتائات',
+        files: [cached.uri],
+      });
+    } catch {
+      // Ignore user cancel or fallback errors
+    } finally {
+      setPdfBusy(false);
+    }
+  };
 
   return (
     <section className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
@@ -77,13 +115,16 @@ export function AboutView({onBackToBrowse}: {onBackToBrowse: () => void}) {
 
         <div className="pt-4 border-t border-[#E2D9C8] dark:border-[#2D333A] flex flex-wrap items-center justify-between gap-3">
           <a
-            href={`${baseUrl}assets/aistudio/booklet_2__Leader.ir__50180706.pdf`}
+            href={pdfUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={handleOpenPdfNative}
             className="inline-flex items-center gap-2 px-4 py-2 text-xs font-medium bg-[#F8F5EE] dark:bg-[#22272C] border border-[#D6CEBE] dark:border-[#2D333A] hover:border-[#0E5C31] text-[#1C1917] dark:text-[#F4EFE6] rounded-md transition-colors"
           >
             <FileText className="w-4 h-4 text-[#9A6B25] dark:text-[#D4AF37]" />
-            <span>مشاهده فایل PDF اصلی کتاب (۵۲۹ صفحه)</span>
+            <span>
+              {pdfBusy ? 'در حال آماده‌سازی فایل PDF...' : 'مشاهده فایل PDF اصلی کتاب (۵۲۹ صفحه)'}
+            </span>
           </a>
 
           <button

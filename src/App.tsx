@@ -4,6 +4,8 @@
  */
 
 import React, {Suspense, lazy, useEffect, useMemo, useRef, useState} from 'react';
+import {Capacitor} from '@capacitor/core';
+import {App as CapApp} from '@capacitor/app';
 import {ListFilter, ArrowUp, BookOpen, SearchX} from 'lucide-react';
 import type {
   BookDataset,
@@ -187,6 +189,27 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  // Android hardware back button handling inside native APK
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let handlePromise = CapApp.addListener('backButton', () => {
+      if (shareQuestion) {
+        setShareQuestion(null);
+      } else if (detailQuestion) {
+        setDetailQuestion(null);
+      } else if (mobileTocOpen) {
+        setMobileTocOpen(false);
+      } else if (activeView !== 'browse') {
+        setActiveView('browse');
+      } else {
+        CapApp.exitApp();
+      }
+    });
+    return () => {
+      handlePromise.then(h => h.remove()).catch(() => {});
+    };
+  }, [shareQuestion, detailQuestion, mobileTocOpen, activeView]);
 
   const bookmarkMap = useMemo(() => {
     const m = new Map<number, BookmarkEntry>();
