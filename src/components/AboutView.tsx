@@ -113,6 +113,18 @@ export function AboutView({onBackToBrowse}: {onBackToBrowse: () => void}) {
           </div>
         </div>
 
+        <div className="p-4 bg-[#F8F5EE] dark:bg-[#22272C] rounded-md border border-[#E2D9C8] dark:border-[#2D333A] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs leading-6 text-[#44403C] dark:text-[#D6D3D1]">
+          <div>
+            <span className="font-bold text-[#1C1917] dark:text-[#F4EFE6]">حریم خصوصی و استقلال آفلاین: </span>
+            <span>
+              تمام متون کتاب، نشانه‌گذاری‌ها و یادداشت‌های شخصی شما به صورت کاملاً محلی روی دستگاه ذخیره می‌شوند و هیچ اطلاعاتی به سرور ارسال نمی‌شود.
+            </span>
+          </div>
+          <span className="shrink-0 text-[#9A6B25] dark:text-[#D4AF37] font-medium tabular-nums">
+            نسخه ۱.۱.۰
+          </span>
+        </div>
+
         <div className="pt-4 border-t border-[#E2D9C8] dark:border-[#2D333A] flex flex-wrap items-center justify-between gap-3">
           <a
             href={pdfUrl}

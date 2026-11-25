@@ -35,6 +35,24 @@ const SAMPLE_QUESTIONS: IstiftaItem[] = [
     answer: 'در رکعت اول و دوم قرائت واجب است و در رکعت سوم تسبیحات اربعه کفایت می‌کند.',
     footnotes: [],
   },
+  {
+    id: 279,
+    page: 62,
+    chapterId: 'taharat',
+    subtopicId: 'taharat-8',
+    question: 'آیا فضله پرندگان حرام گوشت نجس است؟',
+    answer: 'فضله پرندگان حرام گوشت نجس نیست.',
+    footnotes: [],
+  },
+  {
+    id: 999,
+    page: 210,
+    chapterId: 'moamelat',
+    subtopicId: 'moamelat-1',
+    question: 'اگر دو پرنده خانگی داشته باشیم چه حکمی دارد؟',
+    answer: 'در نگهداری پرنده مانعی نیست.',
+    footnotes: [],
+  },
 ];
 
 const DEFAULT_OPTS: SearchOptions = {
@@ -53,6 +71,21 @@ describe('Search engine & dataset integrity', () => {
     const res = searchQuestions(index, {...DEFAULT_OPTS, query: 'س ۴۵۸'});
     assert.equal(res.directQuestionMatch, 458);
     assert.equal(res.items[0]?.id, 458);
+  });
+
+  it('matches Persian singular/plural pairs (پرنده <-> پرندگان) and prioritizes exact whole-word matches', () => {
+    const res = searchQuestions(index, {...DEFAULT_OPTS, query: 'پرنده'});
+    assert.deepEqual(
+      res.items.map(i => i.id),
+      [999, 279],
+    );
+    assert.equal(res.usedMorphologicalMatch, true);
+  });
+
+  it('avoids false mid-word substring matches when searching whole words', () => {
+    const res = searchQuestions(index, {...DEFAULT_OPTS, query: 'دار'});
+    // "ندارد" or "دارد" should NOT match whole word "دار"
+    assert.equal(res.items.length, 0);
   });
 
   it('respects AND (all), OR (any), and exact match modes', () => {
@@ -116,18 +149,26 @@ describe('Search engine & dataset integrity', () => {
     assert.deepEqual(restored.bookmarkedSubtopics, ['namaz-10']);
   });
 
-  it('verifies full extracted ajwibah.json dataset has all 2118 Q&As intact', () => {
+  it('verifies full extracted ajwibah.json dataset has all 2118 Q&As intact and finds پرندگان for پرنده', () => {
     const datasetPath = path.resolve(process.cwd(), 'public/data/ajwibah.json');
     const dataset = JSON.parse(fs.readFileSync(datasetPath, 'utf8')) as BookDataset;
     assert.equal(dataset.questions.length, 2118);
     assert.equal(dataset.chapters.length, 12);
     const fullIndex = buildSearchIndex(dataset.questions);
+
     const khomsResult = searchQuestions(fullIndex, {
       ...DEFAULT_OPTS,
       query: 'خمس مؤونه',
       chapterIds: ['khoms'],
     });
     assert.ok(khomsResult.items.length > 5);
+
+    const birdResult = searchQuestions(fullIndex, {
+      ...DEFAULT_OPTS,
+      query: 'پرنده',
+    });
+    assert.ok(birdResult.items.some(q => q.id === 279));
+    assert.ok(birdResult.items.some(q => q.id === 280));
   });
 
   it('formats share text cleanly without embedding links', () => {

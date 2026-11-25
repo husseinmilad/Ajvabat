@@ -14,10 +14,10 @@ export function toPersianDigits(input: string | number): string {
 
 /**
  * Normalizes Persian & Arabic text for forgiving, accurate full-text search:
- * - Converts Arabic yeh/alef-maksura (ي, ى) to Persian ی
+ * - Converts Arabic yeh/alef-maksura (ي, ى, ئ) to Persian ی
  * - Converts Arabic kaf (ك) to Persian ک
  * - Unifies alef variants (أ, إ, آ, ٱ) to ا
- * - Converts teh marbuta (ة) to ه
+ * - Unifies heh variants (ة, ۀ, ھ) to ه
  * - Strips Arabic diacritics (tashkeel), tatweel (ـ), and zero-width chars
  * - Normalizes digits to ASCII and collapses whitespace
  */
@@ -29,11 +29,76 @@ export function normalizePersian(input: string): string {
     .replace(/[كک]/g, 'ک')
     .replace(/[أإآٱ]/g, 'ا')
     .replace(/[ؤ]/g, 'و')
-    .replace(/ة/g, 'ه')
-    .replace(/[.,،؛:؟!()«»\[\]\-–—]/g, ' ')
+    .replace(/[ةۀھ]/g, 'ه')
+    .replace(/[.,،؛:؟!()«»\[\]\-–—/\\]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
+}
+
+/**
+ * Splits normalized Persian/Arabic text into clean word tokens,
+ * preserving ZWNJ word boundaries for compound words when needed.
+ */
+export function tokenizePersian(input: string): string[] {
+  const norm = normalizePersian(input);
+  return norm ? norm.split(' ').filter(Boolean) : [];
+}
+
+/**
+ * Generates canonical morphological lemma keys for a single normalized Persian word.
+ * Handles common Persian plural & inflection patterns cleanly (including -ه <-> -گان
+ * such as پرنده <-> پرندگان) without truncating words into false root substrings.
+ */
+export function getPersianLemmas(normalizedWord: string): string[] {
+  const w = normalizedWord.trim();
+  if (!w) return [];
+
+  const lemmas = new Set<string>([w]);
+
+  // Handle -ه <-> -گان / -گانی pluralization (e.g. پرنده <-> پرندگان)
+  if (w.endsWith('ه') && w.length >= 3) {
+    lemmas.add(`${w.slice(0, -1)}#h`);
+  }
+  if (w.endsWith('گان') && w.length >= 5) {
+    const stem = w.slice(0, -3);
+    lemmas.add(`${stem}#h`);
+    lemmas.add(`${stem}ه`);
+  } else if (w.endsWith('گانی') && w.length >= 6) {
+    const stem = w.slice(0, -4);
+    lemmas.add(`${stem}#h`);
+    lemmas.add(`${stem}ه`);
+  }
+
+  // Strip common Persian plural / possessive / indefinite suffixes safely
+  const suffixes = ['هایی', 'های', 'ها', 'یان', 'ان', 'ات', 'جات', 'ین', 'ام', 'اش', 'ای'];
+  for (const suf of suffixes) {
+    if (w.endsWith(suf) && w.length - suf.length >= 3) {
+      const base = w.slice(0, -suf.length);
+      lemmas.add(base);
+      if (base.endsWith('ه')) {
+        lemmas.add(`${base.slice(0, -1)}#h`);
+      }
+    }
+  }
+
+  // Trailing ی (nisba / indefinite / plural link) when remaining stem >= 3 chars
+  if (w.endsWith('ی') && w.length >= 4) {
+    const base = w.slice(0, -1);
+    lemmas.add(base);
+    if (base.endsWith('ه')) {
+      lemmas.add(`${base.slice(0, -1)}#h`);
+    }
+  }
+
+  // Strip verb prefix می / نمی when remaining stem >= 3 chars
+  if (w.startsWith('نمی') && w.length >= 6) {
+    lemmas.add(w.slice(3));
+  } else if (w.startsWith('می') && w.length >= 5) {
+    lemmas.add(w.slice(2));
+  }
+
+  return [...lemmas];
 }
 
 /**
@@ -54,38 +119,70 @@ export interface HighlightSegment {
   matched: boolean;
 }
 
+function charToPattern(ch: string): string {
+  if (ch === 'ی') return '[يیىئ]';
+  if (ch === 'ک') return '[كک]';
+  if (ch === 'ا') return '[اأإآٱ]';
+  if (ch === 'و') return '[وؤؤ]';
+  if (ch === 'ه') return '[ههٔةۀھ]';
+  if (/\d/.test(ch)) {
+    const d = Number(ch);
+    const p = PERSIAN_DIGITS[d];
+    const a = String.fromCharCode(0x0660 + d);
+    return `[${ch}${p}${a}]`;
+  }
+  return ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+const DIACRITICS_OPT = '[\u064B-\u065F\u0670\u0640\u200c]*';
+
+function wordToPattern(word: string): string {
+  return word.split('').map(charToPattern).join(DIACRITICS_OPT);
+}
+
 /**
- * Splits display text into highlighted/plain segments matching any normalized query tokens.
+ * Splits display text into highlighted/plain segments matching query tokens
+ * and their Persian plural/morphological equivalents (e.g. پرنده -> پرندگان).
  */
 export function splitHighlightSegments(text: string, query: string): HighlightSegment[] {
   if (!text || !query.trim()) {
     return [{text, matched: false}];
   }
-  const tokens = normalizePersian(query)
-    .split(' ')
-    .filter(t => t.length >= 2);
+  const tokens = tokenizePersian(query).filter(t => t.length >= 2);
   if (tokens.length === 0) {
     return [{text, matched: false}];
   }
 
-  // Build permissive regex that matches Persian/Arabic letter equivalents & optional diacritics/ZWNJ
-  const charMap = (ch: string): string => {
-    if (ch === 'ی') return '[يیىئ]';
-    if (ch === 'ک') return '[كک]';
-    if (ch === 'ا') return '[اأإآٱ]';
-    if (ch === 'و') return '[وؤؤ]';
-    if (ch === 'ه') return '[ههٔة]';
-    if (/\d/.test(ch)) {
-      const d = Number(ch);
-      const p = PERSIAN_DIGITS[d];
-      const a = String.fromCharCode(0x0660 + d);
-      return `[${ch}${p}${a}]`;
+  const expandedForms: string[] = [];
+  for (const tok of tokens) {
+    const forms = new Set<string>([tok]);
+    if (tok.endsWith('ه') && tok.length >= 3) {
+      const stem = tok.slice(0, -1);
+      forms.add(`${stem}گان`);
+      forms.add(`${stem}گانی`);
+      forms.add(`${tok}ها`);
+      forms.add(`${tok}های`);
+      forms.add(`${tok}هایی`);
+      forms.add(`${tok}ای`);
+    } else if (tok.endsWith('گان') && tok.length >= 5) {
+      forms.add(`${tok.slice(0, -3)}ه`);
+    } else {
+      for (const lemma of getPersianLemmas(tok)) {
+        if (!lemma.includes('#')) {
+          forms.add(lemma);
+          forms.add(`${lemma}ها`);
+          forms.add(`${lemma}های`);
+          forms.add(`${lemma}ان`);
+          forms.add(`${lemma}ات`);
+        }
+      }
     }
-    return ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  };
+    // Sort longer forms first so regex matches full inflected words (e.g. پرندگان) instead of partial prefix
+    const sorted = [...forms].sort((a, b) => b.length - a.length);
+    expandedForms.push(...sorted);
+  }
 
-  const diacriticsOpt = '[\u064B-\u065F\u0670\u0640\u200c]*';
-  const patterns = tokens.map(tok => tok.split('').map(charMap).join(diacriticsOpt));
+  const patterns = expandedForms.map(wordToPattern);
   const regex = new RegExp(`(${patterns.join('|')})`, 'gi');
 
   const segments: HighlightSegment[] = [];

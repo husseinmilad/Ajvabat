@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android Store Release (APK & AAB)
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  build-apk:
+  build-android:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -57,44 +57,89 @@ jobs:
             npm install
           fi
 
-      - name: Type check
-        run: npm run lint
+      - name: Type check and search engine tests
+        run: |
+          npm run lint
+          npx --yes tsx --test src/utils/persian.test.ts src/utils/search.test.ts
 
       - name: Build offline bundle and sync Capacitor Android
         run: npm run cap:sync
 
-      - name: Build Android APK
+      - name: Prepare Release Keystore (if configured in Secrets)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > /tmp/release-keystore.jks
+            echo "ANDROID_KEYSTORE_PATH=/tmp/release-keystore.jks" >> "$GITHUB_ENV"
+            echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "ANDROID_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "HAS_RELEASE_SIGNING=true" >> "$GITHUB_ENV"
+            echo "Release signing enabled with configured GitHub Secrets."
+          else
+            echo "HAS_RELEASE_SIGNING=false" >> "$GITHUB_ENV"
+            echo "::warning::ANDROID_KEYSTORE_* secrets are not fully configured; Release APK/AAB will be built unsigned. Add the 4 secrets to sign automatically for Cafe Bazaar and Myket."
+          fi
+
+      - name: Build Release APK, Release AAB, and Debug APK
+        run: |
+          VERSION_CODE=$(( ${GITHUB_RUN_NUMBER:-1} + 1 ))
+          VERSION_NAME="1.1.0"
+          echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+
           sed -i 's/\r$//' android/gradlew || true
           chmod +x android/gradlew
           cd android
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleRelease bundleRelease assembleDebug \
+            -PVERSION_CODE="$VERSION_CODE" \
+            -PVERSION_NAME="$VERSION_NAME" \
+            --no-daemon --stacktrace
 
-      - name: Package APK output
+      - name: Collect APK & AAB outputs
         run: |
-          APK_PATH="android/app/build/outputs/apk/debug/app-debug.apk"
-          test -f "$APK_PATH"
-          mkdir -p apk-out
-          cp "$APK_PATH" apk-out/Ajwibah-Al-Istiftaat.apk
-          ls -lh apk-out/Ajwibah-Al-Istiftaat.apk
+          mkdir -p release-out
 
-      - name: Upload APK artifact
+          if [ -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
+            cp "android/app/build/outputs/apk/release/app-release.apk" "release-out/Ajwibah-Al-Istiftaat-v${VERSION_NAME}-release.apk"
+          elif [ -f "android/app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
+            cp "android/app/build/outputs/apk/release/app-release-unsigned.apk" "release-out/Ajwibah-Al-Istiftaat-v${VERSION_NAME}-release-unsigned.apk"
+          else
+            echo "Release APK output not found!"
+            exit 1
+          fi
+
+          AAB_PATH="android/app/build/outputs/bundle/release/app-release.aab"
+          test -f "$AAB_PATH"
+          cp "$AAB_PATH" "release-out/Ajwibah-Al-Istiftaat-v${VERSION_NAME}-release.aab"
+
+          DEBUG_APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          test -f "$DEBUG_APK"
+          cp "$DEBUG_APK" "release-out/Ajwibah-Al-Istiftaat-v${VERSION_NAME}-debug.apk"
+
+          ls -lh release-out/
+
+      - name: Upload Store Release artifacts (APK & AAB)
         uses: actions/upload-artifact@v4
         with:
-          name: Ajwibah-Al-Istiftaat-APK
-          path: apk-out/Ajwibah-Al-Istiftaat.apk
+          name: Ajwibah-Al-Istiftaat-Store-Release
+          path: release-out/*
           retention-days: 90
 
-      - name: Publish APK to GitHub Release
+      - name: Publish to GitHub Release
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="apk-latest"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" apk-out/Ajwibah-Al-Istiftaat.apk --clobber
+            gh release upload "$TAG" release-out/* --clobber
           else
-            gh release create "$TAG" apk-out/Ajwibah-Al-Istiftaat.apk \
-              --title "اجوبة‌الاستفتائات - نسخه اندروید (APK)" \
-              --notes "نسخه اندروید (APK) اپلیکیشن جامع اجوبة‌الاستفتائات با تمام امکانات، جستجوی ساده و پیشرفته، نشان‌گذاری، یادداشت شخصی و اشتراک‌گذاری متنی و تصویری."
+            gh release create "$TAG" release-out/* \
+              --title "اجوبة‌الاستفتائات - نسخه انتشار کافه‌بازار و مایکت (APK و AAB)" \
+              --notes "خروجی بیلد نسخه ${VERSION_NAME} (کد نسخه ${VERSION_CODE}): شامل فایل Release APK و AAB برای انتشار در کافه‌بازار و مایکت به همراه نسخه Debug جهت آزمایش سریع."
           fi

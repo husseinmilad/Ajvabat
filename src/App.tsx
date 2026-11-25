@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, {Suspense, lazy, useEffect, useMemo, useRef, useState} from 'react';
+import React, {Suspense, lazy, useDeferredValue, useEffect, useMemo, useRef, useState} from 'react';
 import {Capacitor} from '@capacitor/core';
 import {App as CapApp} from '@capacitor/app';
 import {ListFilter, ArrowUp, BookOpen, SearchX} from 'lucide-react';
@@ -11,7 +11,6 @@ import type {
   BookDataset,
   BookmarkEntry,
   Chapter,
-  FontScale,
   IstiftaItem,
   NoteEntry,
   SearchOptions,
@@ -216,15 +215,17 @@ export default function App() {
     [bookmarkedSubtopics],
   );
 
-  // Execute search / filter
+  const deferredSearchOptions = useDeferredValue(searchOptions);
+
+  // Execute search / filter with deferred value to keep Persian typing responsive
   const searchResult = useMemo(() => {
-    return searchQuestions(searchIndex, searchOptions, bookmarkIdSet, noteIdSet);
-  }, [searchIndex, searchOptions, bookmarkIdSet, noteIdSet]);
+    return searchQuestions(searchIndex, deferredSearchOptions, bookmarkIdSet, noteIdSet);
+  }, [searchIndex, deferredSearchOptions, bookmarkIdSet, noteIdSet]);
 
   // Reset visible pagination when filters change
   useEffect(() => {
     setVisibleCount(PAGE_STEP);
-  }, [searchOptions]);
+  }, [deferredSearchOptions]);
 
   const visibleItems = useMemo(
     () => searchResult.items.slice(0, visibleCount),
@@ -373,8 +374,6 @@ export default function App() {
         onToggleTheme={() =>
           setPrefs(p => ({...p, theme: p.theme === 'light' ? 'dark' : 'light'}))
         }
-        fontScale={prefs.fontScale}
-        onChangeFontScale={(fontScale: FontScale) => setPrefs(p => ({...p, fontScale}))}
         onJumpToQuestion={handleJumpToQuestion}
       />
 
@@ -559,6 +558,7 @@ export default function App() {
                     onChange={setSearchOptions}
                     onReset={() => setSearchOptions(DEFAULT_SEARCH_OPTIONS)}
                     resultCount={searchResult.items.length}
+                    usedMorphologicalMatch={searchResult.usedMorphologicalMatch}
                     expanded={advancedExpanded}
                     onToggleExpanded={() => setAdvancedExpanded(v => !v)}
                     searchInputRef={workspaceSearchRef}
@@ -590,7 +590,7 @@ export default function App() {
                           item={item}
                           chapterTitle={chaptersById.get(item.chapterId)?.title || ''}
                           subtopicTitle={subtopicsById.get(item.subtopicId)?.title || ''}
-                          highlightQuery={searchOptions.query}
+                          highlightQuery={deferredSearchOptions.query}
                           fontScale={prefs.fontScale}
                           bookmark={bookmarkMap.get(item.id)}
                           note={noteMap.get(item.id)}
@@ -642,7 +642,7 @@ export default function App() {
       <footer className="border-t border-[#E2D9C8] dark:border-[#2D333A] bg-[#EFE9DC]/50 dark:bg-[#191D21]/60 py-5 mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-[#57534E] dark:text-[#A8A29E]">
           <span>
-            مرجع تعاملی اجوبة‌الاستفتائات شهید آیت‌الله سید علی خامنه‌ای (قدس‌الله‌نفسه‌الزکیه)
+            به یاد قائد شهید سید علی خامنه‌ای (قدس‌الله‌نفسه‌الزکیه)؛ ان شاء الله از ما راضی باشند.
           </span>
           <span className="tabular-nums">
             ۲٬۱۱۸ استفتاء · ۵۲۹ صفحه متن کامل

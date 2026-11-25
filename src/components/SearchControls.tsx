@@ -15,6 +15,7 @@ interface SearchControlsProps {
   onChange: (next: SearchOptions) => void;
   onReset: () => void;
   resultCount: number;
+  usedMorphologicalMatch?: boolean;
   expanded: boolean;
   onToggleExpanded: () => void;
   searchInputRef?: React.RefObject<HTMLInputElement | null>;
@@ -48,11 +49,49 @@ export function SearchControls({
   onChange,
   onReset,
   resultCount,
+  usedMorphologicalMatch = false,
   expanded,
   onToggleExpanded,
   searchInputRef,
 }: SearchControlsProps) {
+  const [draftQuery, setDraftQuery] = React.useState(options.query);
+  const isComposingRef = React.useRef(false);
+  const lastCommittedRef = React.useRef(options.query);
+  const debounceTimerRef = React.useRef<number | null>(null);
+  const latestOptionsRef = React.useRef(options);
+  latestOptionsRef.current = options;
+
+  React.useEffect(() => {
+    if (!isComposingRef.current && options.query !== lastCommittedRef.current) {
+      lastCommittedRef.current = options.query;
+      setDraftQuery(options.query);
+    }
+  }, [options.query]);
+
+  React.useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) window.clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
+
+  const commitQuery = (val: string, immediate = false) => {
+    if (debounceTimerRef.current) {
+      window.clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    if (immediate) {
+      lastCommittedRef.current = val;
+      onChange({...latestOptionsRef.current, query: val});
+      return;
+    }
+    debounceTimerRef.current = window.setTimeout(() => {
+      lastCommittedRef.current = val;
+      onChange({...latestOptionsRef.current, query: val});
+    }, 180);
+  };
+
   const hasActiveFilters =
+    Boolean(draftQuery.trim()) ||
     Boolean(options.query.trim()) ||
     options.chapterIds.length > 0 ||
     Boolean(options.subtopicId) ||
@@ -73,7 +112,13 @@ export function SearchControls({
   return (
     <div className="bg-[#FFFDF8] dark:bg-[#191D21] border border-[#E2D9C8] dark:border-[#2D333A] rounded-lg p-4 space-y-4">
       {/* Main Search Input + Advanced Toggle */}
-      <div className="flex flex-col sm:flex-row gap-2.5">
+      <form
+        onSubmit={e => {
+          e.preventDefault();
+          commitQuery(draftQuery, true);
+        }}
+        className="flex flex-col sm:flex-row gap-2.5"
+      >
         <div className="relative flex-1">
           <label htmlFor="workspace-search-input" className="sr-only">
             جستجو در متن سؤال، پاسخ و پاورقی‌ها
@@ -82,9 +127,30 @@ export function SearchControls({
           <input
             ref={searchInputRef}
             id="workspace-search-input"
-            type="search"
-            value={options.query}
-            onChange={e => onChange({...options, query: e.target.value})}
+            type="text"
+            inputMode="search"
+            enterKeyHint="search"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            value={draftQuery}
+            onCompositionStart={() => {
+              isComposingRef.current = true;
+            }}
+            onCompositionEnd={e => {
+              isComposingRef.current = false;
+              const val = e.currentTarget.value;
+              setDraftQuery(val);
+              commitQuery(val, false);
+            }}
+            onChange={e => {
+              const val = e.target.value;
+              setDraftQuery(val);
+              if (!isComposingRef.current) {
+                commitQuery(val, false);
+              }
+            }}
             placeholder="جستجوی ساده یا پیشرفته (متن فارسی/عربی یا شماره سؤال مثل س ۴۵۸)..."
             className="w-full pr-10 pl-4 py-2.5 text-sm bg-[#F8F5EE] dark:bg-[#111315] border border-[#D6CEBE] dark:border-[#2D333A] rounded-md text-[#1C1917] dark:text-[#F4EFE6] placeholder:text-[#78716C] focus:outline-none focus:border-[#0F4C46] dark:focus:border-[#2DD4BF]"
           />
@@ -108,7 +174,15 @@ export function SearchControls({
           {hasActiveFilters && (
             <button
               type="button"
-              onClick={onReset}
+              onClick={() => {
+                if (debounceTimerRef.current) {
+                  window.clearTimeout(debounceTimerRef.current);
+                  debounceTimerRef.current = null;
+                }
+                lastCommittedRef.current = '';
+                setDraftQuery('');
+                onReset();
+              }}
               className="inline-flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium text-[#9A3412] dark:text-[#FCA5A5] bg-[#FEF2F2] dark:bg-[#450A0A]/40 border border-[#FECACA] dark:border-[#7F1D1D] rounded-md hover:opacity-90 cursor-pointer whitespace-nowrap"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -116,7 +190,7 @@ export function SearchControls({
             </button>
           )}
         </div>
-      </div>
+      </form>
 
       {/* Ruling Quick-Filter Strip */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-[#E2D9C8]/70 dark:border-[#2D333A]/70">
@@ -141,8 +215,18 @@ export function SearchControls({
           })}
         </div>
 
-        <div className="text-xs text-[#57534E] dark:text-[#A8A29E] tabular-nums">
-          نتیجه: <strong className="text-[#1C1917] dark:text-[#F4EFE6]">{toPersianDigits(resultCount)}</strong> استفتاء
+        <div className="text-xs text-[#57534E] dark:text-[#A8A29E] tabular-nums flex items-center gap-2">
+          <span>
+            نتیجه: <strong className="text-[#1C1917] dark:text-[#F4EFE6]">{toPersianDigits(resultCount)}</strong> استفتاء
+          </span>
+          {usedMorphologicalMatch && options.query.trim() && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span className="text-[11px] text-[#9A6B25] dark:text-[#D4AF37]">
+                شامل جمع و هم‌خانواده‌ها
+              </span>
+            </>
+          )}
         </div>
       </div>
 

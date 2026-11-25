@@ -79,11 +79,49 @@ export function HeroAtlas({
   onOpenAdvancedSearch,
 }: HeroAtlasProps) {
   const [hoveredChapter, setHoveredChapter] = useState<Chapter | null>(null);
+  const [draftQuery, setDraftQuery] = useState(searchInputValue);
+  const isComposingRef = React.useRef(false);
+  const lastCommittedRef = React.useRef(searchInputValue);
+  const debounceTimerRef = React.useRef<number | null>(null);
   const totalQ = chapters.reduce((acc, c) => acc + c.questionCount, 0) || 2118;
+
+  React.useEffect(() => {
+    if (!isComposingRef.current && searchInputValue !== lastCommittedRef.current) {
+      lastCommittedRef.current = searchInputValue;
+      setDraftQuery(searchInputValue);
+    }
+  }, [searchInputValue]);
+
+  React.useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) window.clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
+
+  const commitQuery = (val: string, immediate = false) => {
+    if (debounceTimerRef.current) {
+      window.clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    if (immediate) {
+      lastCommittedRef.current = val;
+      onSearchInputChange(val);
+      return;
+    }
+    debounceTimerRef.current = window.setTimeout(() => {
+      lastCommittedRef.current = val;
+      onSearchInputChange(val);
+    }, 180);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onQuickSearch(searchInputValue);
+    if (debounceTimerRef.current) {
+      window.clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    lastCommittedRef.current = draftQuery;
+    onQuickSearch(draftQuery);
   };
 
   return (
@@ -122,10 +160,31 @@ export function HeroAtlas({
                 <Search className="w-4 h-4 text-[#78716C] absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   id="hero-search-input"
-                  type="search"
-                  value={searchInputValue}
-                  onChange={e => onSearchInputChange(e.target.value)}
-                  placeholder="جستجوی موضوع، واژه شرعی یا شماره سؤال (مثلاً: نماز مسافر، خمس، س ۴۵۸)..."
+                  type="text"
+                  inputMode="search"
+                  enterKeyHint="search"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  value={draftQuery}
+                  onCompositionStart={() => {
+                    isComposingRef.current = true;
+                  }}
+                  onCompositionEnd={e => {
+                    isComposingRef.current = false;
+                    const val = e.currentTarget.value;
+                    setDraftQuery(val);
+                    commitQuery(val, false);
+                  }}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setDraftQuery(val);
+                    if (!isComposingRef.current) {
+                      commitQuery(val, false);
+                    }
+                  }}
+                  placeholder="جستجوی موضوع، واژه شرعی یا شماره سؤال (مثلاً: نماز مسافر، پرنده، س ۴۵۸)..."
                   className="w-full pr-10 pl-4 py-3 text-sm bg-[#FFFDF8] dark:bg-[#191D21] border border-[#D6CEBE] dark:border-[#2D333A] rounded-md text-[#1C1917] dark:text-[#F4EFE6] placeholder:text-[#78716C] focus:outline-none focus:border-[#0F4C46] dark:focus:border-[#2DD4BF] shadow-xs"
                 />
               </div>
@@ -138,7 +197,10 @@ export function HeroAtlas({
                 </button>
                 <button
                   type="button"
-                  onClick={onOpenAdvancedSearch}
+                  onClick={() => {
+                    commitQuery(draftQuery, true);
+                    onOpenAdvancedSearch();
+                  }}
                   className="px-4 py-3 text-sm font-medium bg-[#FFFDF8] dark:bg-[#191D21] border border-[#D6CEBE] dark:border-[#2D333A] hover:border-[#0F4C46] dark:hover:border-[#2DD4BF] text-[#1C1917] dark:text-[#F4EFE6] rounded-md transition-colors cursor-pointer whitespace-nowrap"
                 >
                   جستجوی پیشرفته
